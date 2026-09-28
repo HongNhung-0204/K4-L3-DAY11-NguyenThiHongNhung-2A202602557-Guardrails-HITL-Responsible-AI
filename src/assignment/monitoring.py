@@ -42,16 +42,60 @@ class MonitoringAlert:
     judge_fails: int = 0
 
     def check_metrics(self) -> list[Alert]:
-        """TODO: compute rates, append Alert objects when thresholds exceeded."""
-        raise NotImplementedError("Implement MonitoringAlert.check_metrics")
+        """Compute rates, append Alert objects when thresholds are exceeded."""
+        self.alerts = []
+
+        block_rate = (
+            self.blocked_requests / self.total_requests
+            if self.total_requests
+            else 0.0
+        )
+        if self.total_requests and block_rate > self.block_rate_threshold:
+            self.alerts.append(
+                Alert(
+                    metric="block_rate",
+                    value=block_rate,
+                    threshold=self.block_rate_threshold,
+                    message=(
+                        "Blocked request rate exceeded the acceptable threshold."
+                    ),
+                )
+            )
+
+        if self.rate_limit_hits > self.rate_limit_hit_threshold:
+            self.alerts.append(
+                Alert(
+                    metric="rate_limit_hits",
+                    value=float(self.rate_limit_hits),
+                    threshold=float(self.rate_limit_hit_threshold),
+                    message="Rate-limit hit volume exceeded the alert threshold.",
+                )
+            )
+
+        judge_fail_rate = (
+            self.judge_fails / self.judge_checks if self.judge_checks else 0.0
+        )
+        if self.judge_checks and judge_fail_rate > self.judge_fail_rate_threshold:
+            self.alerts.append(
+                Alert(
+                    metric="judge_fail_rate",
+                    value=judge_fail_rate,
+                    threshold=self.judge_fail_rate_threshold,
+                    message="Judge safety failures are above the acceptable rate.",
+                )
+            )
+
+        return self.alerts
 
     def export_json(self, filepath: str | None = None):
-        """TODO: write metrics + alerts to JSON under repo-root ``outputs/`` by default.
-        Use ``filepath or default_metrics_path()`` so running from ``src/`` does not
-        create ``src/outputs/``.
-        """
-        _ = filepath or default_metrics_path()
-        raise NotImplementedError("Implement MonitoringAlert.export_json")
+        """Write metrics + alerts to JSON under repo-root ``outputs/`` by default."""
+        path_str = filepath or default_metrics_path()
+        path = Path(path_str)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        snapshot = self.snapshot()
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(snapshot, f, indent=2, ensure_ascii=False)
+        return str(path)
 
     def snapshot(self) -> dict:
         block_rate = (
